@@ -4,7 +4,7 @@ subtitle: "Week6-ex1, problem statement"
 output: pdf_document
 ---
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo=TRUE)
 ```
 
 
@@ -17,9 +17,9 @@ data = read.csv("white_fishes_data.csv")
 head(data)
 
 # Let's then take the covariates to matrix X and standardize them
-X = data[,c("DIS_SAND","ICELAST09","BOTTOMCOV")]
+X = data[,c("DIS_SAND", "ICELAST09", "BOTTOMCOV")]
 
-# And for last let's take the presence-absence observations of white fish larvae into Y
+# Let's take the presence-absence observations of white fish larvae into Y
 y = data$WHIBIN
 ```
 
@@ -37,7 +37,7 @@ $$X\beta = \beta_1\times\text{DISSAND}+\beta_2\times\text{ICELAST09}+\beta_3\tim
 
 Note also that the DIS_SAND and ICELAST09 are continuous covariates whereas BOTTOMCOV is a categorical covariate getting value 1 if the bottom is covered by vegetation and 0 if the bottom is not covered by vegetation. 
 ```{r}
-par(mfrow=c(1,3))
+par(mfrow=c(1, 3))
 hist(X$DIS_SAND)
 hist(X$ICELAST09)
 hist(X$BOTTOMCOV)
@@ -48,8 +48,8 @@ Hence, the parameter $\beta_3$ corresponds to the effect of vegetation to the ob
 Before starting the analysis we standardize the continues covariates but not the categorical BOTTOMCOV covariate. If we standardized the categorical variable the interpretation of $\beta_3$ parameter would change.
 ```{r}
 mx = colMeans(X[,1:2])
-stdx = apply(X[,1:2],2,sd)
-X[,1:2] = (X[,1:2]-t(replicate(dim(X)[1],mx)))/t(replicate(dim(X)[1],stdx))
+stdx = apply(X[,1:2], 2, sd)
+X[,1:2] = (X[,1:2] - t(replicate(dim(X)[1], mx)))/t(replicate(dim(X)[1], stdx))
 
 mx
 stdx
@@ -75,7 +75,7 @@ library(boot)
 library(Rlab)
 
 options(mc.cores = parallel::detectCores())
-rstan_options(auto_write = TRUE)
+rstan_options(auto_write=TRUE)
 set.seed(123)
 ```
 
@@ -101,14 +101,15 @@ model{
 data <- list (n=length(y), X=X, y=y)
 
 set.seed(123)
-post = stan(model_code=whitefish_model, data=data, warmup=500, iter=2000, chains=4, thin=1, control = list(adapt_delta = 0.8, max_treedepth = 10))
+post = stan(model_code=whitefish_model, data=data, warmup=500, iter=2000, 
+            chains=4, thin=1, control=list(adapt_delta=0.8, max_treedepth=10))
 ```
 
 ```{r}
-print(post, pars=c("alpha","beta"))
-plot(post, pars=c("alpha","beta"), plotfun= "trace", inc_warmup = TRUE)
-plot(post, pars=c("alpha","beta"), plotfun= "trace", inc_warmup = FALSE)
-stan_ac(post, c("alpha","beta"),inc_warmup = FALSE, lags = 25)
+print(post, pars=c("alpha", "beta"))
+plot(post, pars=c("alpha", "beta"), plotfun="trace", inc_warmup=TRUE)
+plot(post, pars=c("alpha", "beta"), plotfun="trace", inc_warmup=FALSE)
+stan_ac(post, c("alpha", "beta"), inc_warmup=FALSE, lags=25)
 ```
 
 ```{r}
@@ -140,34 +141,52 @@ The prior covariance of N(0,10) is positive and much bigger than the posterior c
 set.seed(123)
 icelast09 = seq(min(X$ICELAST09), max(X$ICELAST09))
 
-theta_bc0 = matrix(NA, length(icelast09), length(alpha))  # matrix of posterior samples of theta when bottom coverage = 0
-median_theta_bc0 = rep(NA, length(icelast09))       # posterior median of theta when bottom coverage = 0
-int_theta_bc0 = matrix(NA, length(icelast09), 2)  # posterior 95% interval of theta when bottom coverage = 0
+# matrix of posterior samples of theta when bottom coverage = 0
+theta_bc0 = matrix(NA, length(icelast09), length(alpha))
 
-theta_bc1 = matrix(NA, length(icelast09), length(alpha))  # matrix of posterior samples of theta when bottom coverage = 1
-median_theta_bc1 = rep(NA, length(icelast09))       # posterior median of theta when bottom coverage = 1
-int_theta_bc1 = matrix(NA, length(icelast09), 2)  # posterior 95% interval of theta when bottom coverage = 1
+# posterior median of theta when bottom coverage = 0
+median_theta_bc0 = rep(NA, length(icelast09))
+
+# posterior 95% interval of theta when bottom coverage = 0
+int_theta_bc0 = matrix(NA, length(icelast09), 2)
+
+# matrix of posterior samples of theta when bottom coverage = 1
+theta_bc1 = matrix(NA, length(icelast09), length(alpha))
+
+# posterior median of theta when bottom coverage = 1
+median_theta_bc1 = rep(NA, length(icelast09))
+
+# posterior 95% interval of theta when bottom coverage = 1
+int_theta_bc1 = matrix(NA, length(icelast09), 2)
 
 for (i in 1:length(icelast09)) {
-  theta_bc0[i,] = inv.logit(alpha + beta1 * mean(X$DIS_SAND) + beta2 * icelast09[i] + beta3 * 0)
+  theta_bc0[i,] = inv.logit(alpha + beta1*mean(X$DIS_SAND) + beta2*icelast09[i])
   median_theta_bc0[i] = median(theta_bc0[i,])
-  int_theta_bc0[i,] = quantile(theta_bc0[i,], probs=c(0.025,0.975))
+  int_theta_bc0[i,] = quantile(theta_bc0[i,], probs=c(0.025, 0.975))
   
-  theta_bc1[i,] = inv.logit(alpha + beta1 * mean(X$DIS_SAND) + beta2 * icelast09[i] + beta3 * 1)
+  theta_bc1[i,] = inv.logit(alpha + beta1*mean(X$DIS_SAND) + beta2*icelast09[i] + beta3)
   median_theta_bc1[i] = median(theta_bc1[i,])
-  int_theta_bc1[i,] = quantile(theta_bc1[i,], probs=c(0.025,0.975))
+  int_theta_bc1[i,] = quantile(theta_bc1[i,], probs=c(0.025, 0.975))
 }
 ```
 
 
 ```{r}
-plot(icelast09, median_theta_bc0, type="l", col="blue", main="bottom coverage = 0", ylim=c(0,1)) # posterior median for theta when bottom coverage = 0
-lines(icelast09, int_theta_bc0[,1], col="green")
-lines(icelast09, int_theta_bc0[,2], col="green") # 95% interval of theta when bottom coverage = 0
+# posterior median for theta when bottom coverage = 0
+plot(icelast09, median_theta_bc0, type="l", col="blue", 
+     main="bottom coverage = 0", ylim=c(0, 1))
 
-plot(icelast09, median_theta_bc1, type="l", col="magenta", main="bottom coverage = 1", ylim=c(0,1)) # posterior median for theta when bottom coverage = 1
+# 95% interval of theta when bottom coverage = 0
+lines(icelast09, int_theta_bc0[,1], col="green")
+lines(icelast09, int_theta_bc0[,2], col="green") 
+
+# posterior median for theta when bottom coverage = 1
+plot(icelast09, median_theta_bc1, type="l", col="magenta", 
+     main="bottom coverage = 1", ylim=c(0, 1)) 
+
+# 95% interval of theta when bottom coverage = 1
 lines(icelast09, int_theta_bc1[,1], col="red")
-lines(icelast09, int_theta_bc1[,2], col="red") # 95% interval of theta when bottom coverage = 1
+lines(icelast09, int_theta_bc1[,2], col="red")
 ```
 
 **Task 4**
@@ -175,6 +194,7 @@ lines(icelast09, int_theta_bc1[,2], col="red") # 95% interval of theta when bott
 ```{r}
 (c(60, 18) - t(mx)) / t(stdx)
 ```
+
 ```{r}
 theta_bc0 = inv.logit(alpha + beta1 * 1.11729  + beta2 * 0.6707792 + beta3 * 0)
 theta_bc1 = inv.logit(alpha + beta1 * 1.11729  + beta2 * 0.6707792 + beta3 * 1)
@@ -195,13 +215,16 @@ The above distribution for the difference in $\theta$ for vegetated and non-vege
 **Task 6**
 
 ```{r}
-y_tilde_bc0 = rep(NA, length(alpha))   # posterior of y tilde when bottom coverage = 0
-y_tilde_bc1 = rep(NA, length(alpha))   # posterior of y tilde when bottom coverage = 1
+# posterior of y tilde when bottom coverage = 0
+y_tilde_bc0 = rep(NA, length(alpha))
+
+# posterior of y tilde when bottom coverage = 1
+y_tilde_bc1 = rep(NA, length(alpha))
 
 for (i in 1:length(alpha)) {
-  y_tilde_bc0[i] = sum(rbern(10, inv.logit(alpha[i] + beta1[i] * 1.11729  + beta2[i] * 0.6707792 + beta3[i] * 0)))
+  y_tilde_bc0[i] = sum(rbern(10, inv.logit(alpha[i] + beta1[i]*1.11729  + beta2[i]*0.6707792)))
   
-  y_tilde_bc1[i] = sum(rbern(10, inv.logit(alpha[i] + beta1[i] * 1.11729  + beta2[i] * 0.6707792 + beta3[i] * 1)))
+  y_tilde_bc1[i] = sum(rbern(10, inv.logit(alpha[i] + beta1[i]*1.11729  + beta2[i]*0.6707792 + beta3[i])))
 }
 ```
 
